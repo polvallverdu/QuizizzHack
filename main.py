@@ -1,28 +1,24 @@
 import json
 import urllib.request
 
+# Inputs the quizizz ID, found on the URL (or debugging the network tab)
+quizizz_id = str(input("Enter quizizz ID: "))
 
-id = str(input("Enter quizizz ID: "))
-
-url = "https://quizizz.com/quiz/{}".format(id)
-
-response = urllib.request.urlopen(url)
+# Request to quizizz server to obtain all information of the quiz
+response = urllib.request.urlopen(f"https://quizizz.com/quiz/{quizizz_id}")
 data = json.loads(response.read())
 
-
-def get_answer(data):
-  correct_ans = data["answer"]
-
-  return data["options"][correct_ans]["text"].replace("<p>", "").replace("</p>", "")
-
-
+# If the id is invalid, exit the program
 if (str(data["success"]) == "false"):
   print("Invalid ID")
   exit()
-else:
-  questions = data["data"]["quiz"]["info"]["questions"]
 
-  for x in range(0, len(questions)):
-    title = questions[x]["structure"]["query"]["text"].replace("<p>", "").replace("</p>", "")
+# Gets the questions dictionary
+questions = data["data"]["quiz"]["info"]["questions"]
 
-    print("\n{} -> {}".format(title, get_answer(questions[x]["structure"])))
+# Loops through every question and prints the question and the correct answer
+for x in range(0, len(questions)):
+  title = questions[x]["structure"]["query"]["text"].replace("<p>", "").replace("</p>", "")
+  answer = data["options"][data["answer"]]["text"].replace("<p>", "").replace("</p>", "")
+  
+  print("\n{}- {}\nAnswer: {}\n".format(str(x), title, answer))
