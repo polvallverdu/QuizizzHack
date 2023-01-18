@@ -2,7 +2,7 @@
 With the id, get all the answers for a quizizz
 
 ## Web version
-In progres..
+In progress..
 
 ## Legacy
 Use `python3 main.py`
