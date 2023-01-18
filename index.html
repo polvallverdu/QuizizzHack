@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Quizizz hack</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.2.3/axios.min.js"
+      integrity="sha512-L4lHq2JI/GoKsERT8KYa72iCwfSrKYWEyaBxzJeeITM9Lub5vlTj8tufqYk056exhjo2QDEipJrg6zen/DDtoQ=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
+    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+
+    <py-config>
+      # packages = ["json"]
+      [[fetch]]
+      files = ["/request.py"]
+    </py-config>
+  </head>
+  <body>
+    <!-- Make a navbar with tailwind that has a text "polvall" at the left, and at the right a search bar (text box) and a button next to it. Space it evenly -->
+    <nav class="flex justify-between items-center bg-gray-800 p-6">
+      <a href="#" class="text-lg font-bold text-white">Quizizz Bot</a>
+      <div class="flex items-center">
+        <!-- Add a dropdown with one option: quizizz -->
+        <select class="bg-gray-700 text-white rounded p-2 mr-2">
+          <option value="quizizz">Quizizz</option>
+        </select>
+        <input
+          type="text"
+          class="bg-gray-700 text-white rounded p-2 mr-2"
+          placeholder="Quiz id"
+          id="quizid"
+        />
+        <button class="bg-gray-700 text-white rounded p-2" id="searchbutton">Find answers</button>
+      </div>
+    </nav>
+
+<py-script>
+from js import document
+from pyodide import create_proxy
+import json
+import asyncio
+from request import format_responses
+######################
+#  Built components  #
+######################
+# Must contain five placeholders: %title% for the title of the quiz, %image% for the image of the quiz, %creator% for the username of the creator of the quiz, %length% for the length of the quiz, and %questions% for other components like the answered questions
+# it should take full width and the needed (unlimited) height (scrollable), with purple background and white text
+# title, creator and length should be at the left, and image should be at the right. Make sure image is not too big. space them evenly
+QUIZ_COMPONENT = """
+<div class="flex justify-between items-center bg-purple-500 p-6">
+  <div class="flex flex-col">
+    <h1 class="text-3xl font-bold text-white">%title%</h1>
+    <h2 class="text-xl font-bold text-white">Created by %creator%</h2>
+    <h2 class="text-xl font-bold text-white">Length: %length% question(s)</h2>
+  </div>
+  <img src="%image%" class="w-32 h-32" />
+
+  <!-- %questions% placeholder. Note that this will be more html. These will be cards (divs). Use a flex to space them -->
+  <div class="flex flex-col">
+    %questions%
+  </div>
+</div>
+"""
+
+def format_question_component(question: dict) -> str:
+  # Must format the question as a card, with the title, the correct answer, and the incorrect answers. Note that the question might not be always text, it can be an audio or a video.
+  # This is the questions dict:
+  # {
+  #   "question": ques,
+  #   "options": options,
+  #   "answer": answer,
+  #   "has_correct_answer": has_correct_answer_scrap,
+  #   "multiple_choice": multiple_choice_scrap,
+  #   "can_submit_custom_response": can_submit_custom_response_scrap,
+  # }
+  # question is what I call a struc, and options is a list of strucs. A struc is:
+  # {
+  #   "type": struc["type"],
+  #   "text": struc["text"],
+  #   "media": struc["media"],
+  #   "math": struc["math"] if struc["hasMath"] else None
+  # }
+  # the dictionary struc is: {"math":{"latex":[],"template":null},"type":"image","hasMath":false,"answerTime":0,"media":[{"type":"image","video":"","url":"https://quizizz.com/media/resource/gs/quizizz-media/quizzes/e6969512-f0b0-4969-a142-a12af64dff79","meta":{"width":417,"height":685,"text":null,"bgColor":null,"layout":null,"videoId":null}}],"text":""}
+  # And answer is the index of the correct answer in options
+  # has_correct_answer is a boolean
+  # multiple_choice is a boolean
+  # can_submit_custom_response is a boolean
+  #
+  # Write the code that will return a html. You can use python comparators
+  question_text = f"""<div class='flex w-1/2 h-1/4'> <h1 class='text-2xl font-bold text-white'>"""
+  
+  if "media" not in question["question"]:
+    question_text += question["question"]["text"]
+  elif question["question"]["type"] == "image":
+    question_text += f"""<img src="{question["question"]["media"][0]["url"]}" />"""
+  elif question["question"]["type"] == "audio":
+    question_text += f"""<audio src="{question["question"]["media"][0]["url"]}" controls></audio>"""
+  elif question["question"]["type"] == "video":
+    question_text += f"""<video src="{question["question"]["media"][0]["url"]}" controls></video>"""
+  else:
+    question_text += question["question"]["text"]
+
+  question_text+= "</h1>"
+  
+  for option in question["options"]:
+    if "media" not in option or " media" not in option:
+      question_text += option["text"]
+    elif option["type"] == "image":
+      question_text += f"""<img src="{option["media"][0]["url"]}" />"""
+    elif option["type"] == "audio":
+      question_text += f"""<audio src="{option["media"][0]["url"]}" controls></audio>"""
+    elif option["type"] == "video":
+      question_text += f"""<video src="{option["media"][0]["url"]}" controls></video>"""
+    else:
+      question_text += option["text"]
+  question_text += "</div>"
+  return question_text
+  
+
+######################
+async def main(e):
+  quizid = document.getElementById("quizid").value
+  data = await format_responses(quizid)
+  # Remove div with id="quizanswers" if it exists
+  if document.getElementById("quizanswers"):
+    document.getElementById("quizanswers").remove()
+  # Format component
+  component = QUIZ_COMPONENT.replace("%title%", data["title"]).replace("%image%", data["image"]).replace("%creator%", data["creator"]).replace("%length%", data["length"])
+  question_components = []
+  for question in data["questions"]:
+    question_components.append(format_question_component(question))
+  
+  component = component.replace("%questions%", "".join(question_components))
+  # Create a new div with id="quizanswers" and insert the quiz component
+  quizanswers = document.createElement("div")
+  quizanswers.id = "quizanswers"
+  quizanswers.innerHTML = component
+  document.body.appendChild(quizanswers)
+
+function_proxy = create_proxy(main)
+document.getElementById("searchbutton").addEventListener("click", function_proxy)
+</py-script>
+
+  </body>
+</html>
